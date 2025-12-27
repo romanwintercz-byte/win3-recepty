@@ -1,285 +1,181 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Recipe, SourceType } from '../types';
-import { PlusIcon, SparklesIcon, TrashIcon, PhotoIcon } from './icons';
+import { SparklesIcon, XMarkIcon, PlusIcon, TrashIcon } from './icons';
 import { extractRecipeFromText } from '../services/geminiService';
 
 interface RecipeFormProps {
-    recipeToEdit?: Recipe | null;
-    onSave: (recipe: Recipe) => void;
-    onClose: () => void;
+  recipeToEdit?: Recipe | null;
+  onSave: (r: Recipe) => void;
+  onClose: () => void;
 }
 
 const RecipeForm: React.FC<RecipeFormProps> = ({ recipeToEdit, onSave, onClose }) => {
-    const [recipe, setRecipe] = useState<Omit<Recipe, 'id'>>({
-        title: '',
-        description: '',
-        imageUrl: '',
-        sourceType: SourceType.MANUAL,
-        ingredients: [''],
-        instructions: [''],
-        prepTime: 0,
-        cookTime: 0,
-        servings: 0,
-        tags: [],
-        rating: 0,
-    });
-    const [tagInput, setTagInput] = useState('');
-    const [importText, setImportText] = useState('');
-    const [isImporting, setIsImporting] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+  const [formData, setFormData] = useState<Omit<Recipe, 'id'>>({
+    title: '',
+    description: '',
+    imageUrl: '',
+    sourceType: SourceType.MANUAL,
+    ingredients: [''],
+    instructions: [''],
+    prepTime: 10,
+    cookTime: 20,
+    servings: 4,
+    tags: [],
+    rating: 3,
+  });
+  const [importText, setImportText] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
 
-    useEffect(() => {
-        if (recipeToEdit) {
-            setRecipe(recipeToEdit);
-        }
-    }, [recipeToEdit]);
+  useEffect(() => {
+    if (recipeToEdit) setFormData(recipeToEdit);
+  }, [recipeToEdit]);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        const { name, value } = e.target;
-        setRecipe(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleNumericChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setRecipe(prev => ({ ...prev, [name]: parseInt(value) || 0 }));
-    };
-
-    const handleListChange = (listName: 'ingredients' | 'instructions', index: number, value: string) => {
-        const newList = [...recipe[listName]];
-        newList[index] = value;
-        setRecipe(prev => ({ ...prev, [listName]: newList }));
-    };
-
-    const addListItem = (listName: 'ingredients' | 'instructions') => {
-        setRecipe(prev => ({ ...prev, [listName]: [...prev[listName], ''] }));
-    };
-
-    const removeListItem = (listName: 'ingredients' | 'instructions', index: number) => {
-        if (recipe[listName].length > 1) {
-            const newList = recipe[listName].filter((_, i) => i !== index);
-            setRecipe(prev => ({ ...prev, [listName]: newList }));
-        }
-    };
-    
-    const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === 'Enter' || e.key === ',') {
-            e.preventDefault();
-            const newTag = tagInput.trim();
-            if (newTag && !recipe.tags.includes(newTag)) {
-                setRecipe(prev => ({ ...prev, tags: [...prev.tags, newTag] }));
-            }
-            setTagInput('');
-        }
-    };
-
-    const removeTag = (tagToRemove: string) => {
-        setRecipe(prev => ({ ...prev, tags: prev.tags.filter(tag => tag !== tagToRemove) }));
-    };
-    
-    const handleFileSelected = (file: File | null) => {
-        if (file && file.type.startsWith('image/')) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setRecipe(prev => ({ ...prev, imageUrl: reader.result as string }));
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            handleFileSelected(e.dataTransfer.files[0]);
-        }
-    };
-
-    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-    };
-
-
-    const handleImport = useCallback(async () => {
-        if (!importText) return;
-        setIsImporting(true);
-        setError(null);
-        try {
-            const extractedData = await extractRecipeFromText(importText);
-            setRecipe(prev => ({
-                ...prev,
-                ...extractedData,
-                sourceType: SourceType.AI_IMPORTED,
-                imageUrl: prev.imageUrl, // Keep existing or empty image
-                rating: 0, // Set default rating for imported recipes
-            }));
-        } catch (err) {
-            setError('Nepodařilo se zpracovat recept z textu. Zkontrolujte prosím formát nebo to zkuste znovu.');
-            console.error(err);
-        } finally {
-            setIsImporting(false);
-        }
-    }, [importText]);
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        const finalRecipe: Recipe = {
-            id: recipeToEdit?.id || new Date().toISOString(),
-            ...recipe,
-            ingredients: recipe.ingredients.filter(i => i.trim() !== ''),
-            instructions: recipe.instructions.filter(i => i.trim() !== ''),
-        };
-        onSave(finalRecipe);
-    };
-    
-    const renderListInputs = (listName: 'ingredients' | 'instructions') => {
-        const singularName = listName === 'ingredients' ? 'ingredienci' : 'krok postupu';
-        const capitalizedListName = listName.charAt(0).toUpperCase() + listName.slice(1);
-        
-        return (
-            <div>
-                <label className="block text-sm font-medium text-stone-700 capitalize mb-2">{capitalizedListName === 'Ingredients' ? 'Ingredience' : 'Postup'}</label>
-                {recipe[listName].map((item, index) => (
-                    <div key={index} className="flex items-center gap-2 mb-2">
-                        <input
-                            type="text"
-                            value={item}
-                            onChange={(e) => handleListChange(listName, index, e.target.value)}
-                            className="w-full px-3 py-2 border border-stone-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"
-                        />
-                        <button type="button" onClick={() => removeListItem(listName, index)} className="text-red-500 hover:text-red-700 p-1 disabled:opacity-50" disabled={recipe[listName].length <= 1}>
-                            <TrashIcon className="w-5 h-5"/>
-                        </button>
-                    </div>
-                ))}
-                <button type="button" onClick={() => addListItem(listName)} className="flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-800 mt-1">
-                    <PlusIcon className="w-4 h-4" /> Přidat {singularName}
-                </button>
-            </div>
-        );
+  const handleAIImport = async () => {
+    if (!importText.trim()) return;
+    setIsImporting(true);
+    try {
+      const result = await extractRecipeFromText(importText);
+      setFormData(prev => ({
+        ...prev,
+        ...result,
+        sourceType: SourceType.AI_IMPORTED
+      }));
+      setImportText('');
+    } catch (e) {
+      alert('Chyba při importu AI.');
+    } finally {
+      setIsImporting(false);
     }
-    
-    return (
-        <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-6">
-            <h2 className="text-2xl font-bold text-stone-800">{recipeToEdit ? 'Upravit Recept' : 'Přidat Nový Recept'}</h2>
-            
-             <div className="p-4 border-l-4 border-emerald-400 bg-emerald-50 rounded-md">
-                <h3 className="font-semibold text-emerald-800 flex items-center gap-2"><SparklesIcon className="w-5 h-5" /> AI Importér Receptů</h3>
-                <p className="text-sm text-emerald-700 mb-2">Vložte text receptu z webové stránky níže a nechte AI, aby za vás vyplnila formulář.</p>
-                <textarea
-                    placeholder="Vložte sem celý text receptu..."
-                    value={importText}
-                    onChange={(e) => setImportText(e.target.value)}
-                    className="w-full h-24 p-2 border border-stone-300 rounded-md"
-                />
-                <button
-                    type="button"
-                    onClick={handleImport}
-                    disabled={isImporting || !importText}
-                    className="mt-2 px-4 py-2 bg-emerald-500 text-white font-semibold rounded-md hover:bg-emerald-600 disabled:bg-stone-300 transition-colors"
-                >
-                    {isImporting ? 'Importuji...' : 'Importovat pomocí AI'}
-                </button>
-                 {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
-            </div>
+  };
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-6">
-                    <div>
-                        <label htmlFor="title" className="block text-sm font-medium text-stone-700">Název</label>
-                        <input type="text" name="title" value={recipe.title} onChange={handleChange} required className="mt-1 block w-full px-3 py-2 border border-stone-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500" />
-                    </div>
-                    <div>
-                        <label htmlFor="description" className="block text-sm font-medium text-stone-700">Popis</label>
-                        <textarea name="description" value={recipe.description} onChange={handleChange} rows={5} className="mt-1 block w-full px-3 py-2 border border-stone-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500"></textarea>
-                    </div>
-                </div>
+  const updateList = (field: 'ingredients' | 'instructions', index: number, value: string) => {
+    const next = [...formData[field]];
+    next[index] = value;
+    setFormData(prev => ({ ...prev, [field]: next }));
+  };
 
-                <div>
-                    <label className="block text-sm font-medium text-stone-700">Fotografie</label>
-                    <div className="mt-1">
-                        {recipe.imageUrl ? (
-                            <div className="relative group">
-                                <img src={recipe.imageUrl} alt="Náhled receptu" className="w-full h-auto max-h-60 object-contain rounded-md border border-stone-300 bg-stone-100" />
-                                <button type="button" onClick={() => setRecipe(prev => ({...prev, imageUrl: ''}))} className="absolute top-2 right-2 p-1.5 bg-black bg-opacity-50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <TrashIcon className="w-5 h-5" />
-                                </button>
-                            </div>
-                        ) : (
-                            <div 
-                                onClick={() => fileInputRef.current?.click()}
-                                onDrop={handleDrop}
-                                onDragOver={handleDragOver}
-                                className="flex justify-center items-center h-full px-6 pt-5 pb-6 border-2 border-stone-300 border-dashed rounded-md cursor-pointer hover:border-emerald-500 bg-stone-50"
-                            >
-                                <div className="space-y-1 text-center">
-                                    <PhotoIcon className="mx-auto h-12 w-12 text-stone-400" />
-                                    <div className="flex text-sm text-stone-600">
-                                        <p className="pl-1">Přetáhněte fotku sem, nebo <strong>klikněte pro nahrání</strong></p>
-                                    </div>
-                                    <p className="text-xs text-stone-500">PNG, JPG, GIF</p>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={e => handleFileSelected(e.target.files ? e.target.files[0] : null)}
-                        className="hidden"
-                    />
-                </div>
-            </div>
-            
-            <div className="grid grid-cols-3 gap-6">
-                <div>
-                    <label htmlFor="prepTime" className="block text-sm font-medium text-stone-700">Čas přípravy (min)</label>
-                    <input type="number" name="prepTime" value={recipe.prepTime} onChange={handleNumericChange} className="mt-1 block w-full px-3 py-2 border border-stone-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500" />
-                </div>
-                <div>
-                    <label htmlFor="cookTime" className="block text-sm font-medium text-stone-700">Čas vaření (min)</label>
-                    <input type="number" name="cookTime" value={recipe.cookTime} onChange={handleNumericChange} className="mt-1 block w-full px-3 py-2 border border-stone-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500" />
-                </div>
-                <div>
-                    <label htmlFor="servings" className="block text-sm font-medium text-stone-700">Porce</label>
-                    <input type="number" name="servings" value={recipe.servings} onChange={handleNumericChange} className="mt-1 block w-full px-3 py-2 border border-stone-300 rounded-md shadow-sm focus:outline-none focus:ring-emerald-500 focus:border-emerald-500" />
-                </div>
-            </div>
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({
+      ...formData,
+      id: recipeToEdit?.id || Date.now().toString(),
+      ingredients: formData.ingredients.filter(i => i.trim()),
+      instructions: formData.instructions.filter(i => i.trim()),
+    });
+  };
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                {renderListInputs('ingredients')}
-                {renderListInputs('instructions')}
-            </div>
+  return (
+    <div className="p-6 md:p-10 max-h-[85vh] overflow-y-auto">
+      <h2 className="text-2xl font-bold text-stone-800 mb-8">{recipeToEdit ? 'Upravit recept' : 'Nový recept'}</h2>
 
+      <div className="mb-10 bg-emerald-50 p-6 rounded-3xl">
+        <div className="flex items-center gap-2 mb-4 text-emerald-800 font-bold">
+          <SparklesIcon className="w-5 h-5" />
+          <h3>Chytrý import pomocí AI</h3>
+        </div>
+        <textarea 
+          placeholder="Vložte text receptu z webu nebo vlastní poznámky..."
+          className="w-full bg-white border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-emerald-500 outline-none h-24"
+          value={importText}
+          onChange={(e) => setImportText(e.target.value)}
+        />
+        <button 
+          onClick={handleAIImport}
+          disabled={isImporting}
+          className="mt-3 bg-emerald-600 text-white px-6 py-2 rounded-full text-sm font-bold hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+        >
+          {isImporting ? 'Pracuji...' : 'Importovat text'}
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-8">
+        <div className="grid md:grid-cols-2 gap-8">
+          <div className="space-y-6">
             <div>
-                <label className="block text-sm font-medium text-stone-700">Štítky</label>
-                 <div className="mt-1 flex flex-wrap items-center gap-2 p-2 border border-stone-300 rounded-md">
-                     {recipe.tags.map(tag => (
-                         <span key={tag} className="flex items-center gap-1.5 bg-emerald-100 text-emerald-800 text-sm px-2 py-1 rounded-full">
-                             {tag}
-                             <button type="button" onClick={() => removeTag(tag)} className="text-emerald-600 hover:text-emerald-800 font-bold text-xs">&times;</button>
-                         </span>
-                     ))}
-                     <input
-                         type="text"
-                         value={tagInput}
-                         onChange={(e) => setTagInput(e.target.value)}
-                         onKeyDown={handleTagKeyDown}
-                         placeholder="Přidat štítek..."
-                         className="flex-grow p-1 outline-none bg-transparent"
-                     />
-                 </div>
-                 <p className="text-xs text-stone-500 mt-1">Stiskněte Enter nebo čárku pro přidání štítku.</p>
+              <label className="block text-xs font-bold uppercase text-stone-400 mb-2">Název jídla</label>
+              <input 
+                required
+                className="w-full bg-stone-100 border-none rounded-2xl p-4 focus:ring-2 focus:ring-emerald-500 outline-none"
+                value={formData.title}
+                onChange={e => setFormData(p => ({ ...p, title: e.target.value }))}
+              />
             </div>
-            
-            <div className="flex justify-end gap-4 pt-4">
-                <button type="button" onClick={onClose} className="px-4 py-2 bg-stone-200 text-stone-800 font-semibold rounded-md hover:bg-stone-300 transition-colors">Zrušit</button>
-                <button type="submit" className="px-4 py-2 bg-emerald-500 text-white font-semibold rounded-md hover:bg-emerald-600 transition-colors shadow">Uložit Recept</button>
+            <div>
+              <label className="block text-xs font-bold uppercase text-stone-400 mb-2">Popis</label>
+              <textarea 
+                className="w-full bg-stone-100 border-none rounded-2xl p-4 focus:ring-2 focus:ring-emerald-500 outline-none h-24"
+                value={formData.description}
+                onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
+              />
             </div>
-        </form>
-    );
+          </div>
+          <div className="space-y-6">
+            <div>
+              <label className="block text-xs font-bold uppercase text-stone-400 mb-2">URL obrázku</label>
+              <input 
+                className="w-full bg-stone-100 border-none rounded-2xl p-4 focus:ring-2 focus:ring-emerald-500 outline-none"
+                value={formData.imageUrl}
+                onChange={e => setFormData(p => ({ ...p, imageUrl: e.target.value }))}
+                placeholder="https://..."
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-stone-400 mb-1">Příprava (min)</label>
+                <input type="number" className="w-full bg-stone-100 border-none rounded-xl p-3" value={formData.prepTime} onChange={e => setFormData(p => ({ ...p, prepTime: +e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-stone-400 mb-1">Vaření (min)</label>
+                <input type="number" className="w-full bg-stone-100 border-none rounded-xl p-3" value={formData.cookTime} onChange={e => setFormData(p => ({ ...p, cookTime: +e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase text-stone-400 mb-1">Porce</label>
+                <input type="number" className="w-full bg-stone-100 border-none rounded-xl p-3" value={formData.servings} onChange={e => setFormData(p => ({ ...p, servings: +e.target.value }))} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-8">
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <label className="text-xs font-bold uppercase text-stone-400">Ingredience</label>
+              <button type="button" onClick={() => setFormData(p => ({ ...p, ingredients: [...p.ingredients, ''] }))} className="text-emerald-600 font-bold text-xs">+ Přidat</button>
+            </div>
+            <div className="space-y-3">
+              {formData.ingredients.map((ing, i) => (
+                <div key={i} className="flex gap-2">
+                  <input className="flex-1 bg-stone-50 border-none rounded-xl p-3 text-sm" value={ing} onChange={e => updateList('ingredients', i, e.target.value)} />
+                  <button type="button" onClick={() => setFormData(p => ({ ...p, ingredients: p.ingredients.filter((_, idx) => idx !== i) }))} className="text-stone-300 hover:text-red-500"><TrashIcon className="w-5 h-5" /></button>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <label className="text-xs font-bold uppercase text-stone-400">Postup</label>
+              <button type="button" onClick={() => setFormData(p => ({ ...p, instructions: [...p.instructions, ''] }))} className="text-emerald-600 font-bold text-xs">+ Přidat krok</button>
+            </div>
+            <div className="space-y-3">
+              {formData.instructions.map((inst, i) => (
+                <div key={i} className="flex gap-2">
+                  <span className="w-8 h-8 flex-shrink-0 bg-stone-200 rounded-lg flex items-center justify-center text-xs font-bold text-stone-500">{i+1}</span>
+                  <textarea className="flex-1 bg-stone-50 border-none rounded-xl p-3 text-sm h-20" value={inst} onChange={e => updateList('instructions', i, e.target.value)} />
+                  <button type="button" onClick={() => setFormData(p => ({ ...p, instructions: p.instructions.filter((_, idx) => idx !== i) }))} className="text-stone-300 hover:text-red-500"><TrashIcon className="w-5 h-5" /></button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-4 pt-10">
+          <button type="button" onClick={onClose} className="px-8 py-3 text-stone-400 font-bold hover:text-stone-600">Zrušit</button>
+          <button type="submit" className="px-10 py-3 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 shadow-xl shadow-emerald-100 transition-all active:scale-95">Uložit recept</button>
+        </div>
+      </form>
+    </div>
+  );
 };
 
 export default RecipeForm;

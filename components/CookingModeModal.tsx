@@ -1,193 +1,209 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Recipe } from '../types';
-import { addTimersToInstructions } from '../services/geminiService';
-import { 
-    XMarkIcon, 
-    ArrowLeftCircleIcon, 
-    ArrowRightCircleIcon, 
-    SparklesIcon,
-    ChevronDownIcon,
-    ChevronUpIcon,
-    ClockIcon,
-    PlayCircleIcon,
-    ArrowPathIcon
-} from './icons';
+import { addTimersToInstructions, generateSpeech } from '../services/geminiService';
+import { XMarkIcon, SparklesIcon, ArrowLeftIcon, ArrowRightIcon, ClockIcon } from './icons';
 
-export interface ProcessedInstruction {
-    text: string;
-    timerInMinutes: number | null;
+interface Step {
+  text: string;
+  timerInMinutes: number | null;
 }
 
-const Timer: React.FC<{ minutes: number }> = ({ minutes }) => {
-    const [timeLeft, setTimeLeft] = useState(minutes * 60);
-    const [isRunning, setIsRunning] = useState(false);
-    const intervalRef = useRef<number | null>(null);
-    const audioRef = useRef<HTMLAudioElement | null>(null);
-
-    useEffect(() => {
-        // Preload audio
-        audioRef.current = new Audio("data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU2LjM2LjEwMAAAAAAAAAAAAAAA//OEAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV6urq6urq6urq6urq6urq6urq6urq6urq////////////////////////////////8AAAAATGF2YzU2LjQxAAAAAAAAAAAAAAAAEMcAAACAAAcNEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//MUZAAAAAGkAAAAAAAAA0gAAAAATEFN//MUREAAAARgAAASg4MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA/zFEQkEAAAAGgAAABEgAAAAozMzg1//MUUSAwAAAaQAAAAAAAADSAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//MUUSBQAAAsAAAAASAP//8AAAAAD/8//hQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/zFEUgYAAANsAAACoGZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmá");
-    }, []);
-
-    useEffect(() => {
-        if (isRunning) {
-            intervalRef.current = window.setInterval(() => {
-                setTimeLeft(prev => {
-                    if (prev <= 1) {
-                        clearInterval(intervalRef.current!);
-                        setIsRunning(false);
-                        audioRef.current?.play();
-                        return 0;
-                    }
-                    return prev - 1;
-                });
-            }, 1000);
-        } else {
-            clearInterval(intervalRef.current!);
-        }
-        return () => clearInterval(intervalRef.current!);
-    }, [isRunning]);
-
-    const toggleTimer = () => setIsRunning(!isRunning);
-    const resetTimer = () => {
-        setIsRunning(false);
-        setTimeLeft(minutes * 60);
-    };
-
-    const formatTime = (seconds: number) => {
-        const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
-        const secs = (seconds % 60).toString().padStart(2, '0');
-        return `${mins}:${secs}`;
-    };
-
-    return (
-        <div className="mt-6 p-4 bg-emerald-50 border-2 border-emerald-200 rounded-lg flex flex-col items-center gap-4">
-            <div className="flex items-center gap-2 text-emerald-700">
-                <ClockIcon className="w-6 h-6" />
-                <span className="text-xl font-semibold">Časovač</span>
-            </div>
-            <p className="text-6xl font-bold font-mono text-stone-800 tabular-nums">{formatTime(timeLeft)}</p>
-            <div className="flex gap-4">
-                <button
-                    onClick={toggleTimer}
-                    className="flex items-center gap-2 px-6 py-3 bg-emerald-500 text-white font-bold rounded-full hover:bg-emerald-600 transition-colors shadow-md text-lg"
-                >
-                    <PlayCircleIcon className="w-6 h-6" />
-                    {isRunning ? 'Pauza' : 'Start'}
-                </button>
-                <button
-                    onClick={resetTimer}
-                    className="flex items-center gap-2 px-6 py-3 bg-stone-200 text-stone-700 font-bold rounded-full hover:bg-stone-300 transition-colors shadow-md text-lg"
-                >
-                    <ArrowPathIcon className="w-6 h-6" />
-                    Reset
-                </button>
-            </div>
-        </div>
-    );
-};
-
-
 const CookingModeModal: React.FC<{ recipe: Recipe, onClose: () => void }> = ({ recipe, onClose }) => {
-    const [processedInstructions, setProcessedInstructions] = useState<ProcessedInstruction[] | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [currentStep, setCurrentStep] = useState(0);
-    const [ingredientsVisible, setIngredientsVisible] = useState(false);
+  const [steps, setSteps] = useState<Step[]>([]);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [timerLeft, setTimerLeft] = useState<number | null>(null);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [isReading, setIsReading] = useState(false);
+  const timerRef = useRef<number | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const currentSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
-    useEffect(() => {
-        const processInstructions = async () => {
-            try {
-                const result = await addTimersToInstructions(recipe.instructions);
-                setProcessedInstructions(result);
-            } catch (err) {
-                console.error(err);
-                setError("Chyba při přípravě interaktivního režimu. Použije se základní zobrazení bez časovačů.");
-                setProcessedInstructions(recipe.instructions.map(text => ({ text, timerInMinutes: null })));
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        processInstructions();
-    }, [recipe.instructions]);
-
-    const handleNext = () => {
-        if (processedInstructions && currentStep < processedInstructions.length - 1) {
-            setCurrentStep(currentStep + 1);
-        }
+  useEffect(() => {
+    const loadSteps = async () => {
+      try {
+        const res = await addTimersToInstructions(recipe.instructions);
+        setSteps(res);
+      } catch (e) {
+        setSteps(recipe.instructions.map(text => ({ text, timerInMinutes: null })));
+      } finally {
+        setLoading(false);
+      }
     };
-
-    const handlePrev = () => {
-        if (currentStep > 0) {
-            setCurrentStep(currentStep - 1);
-        }
+    loadSteps();
+    return () => {
+        if (currentSourceRef.current) currentSourceRef.current.stop();
+        if (audioContextRef.current) audioContextRef.current.close();
     };
-    
-    const currentInstruction = processedInstructions?.[currentStep];
+  }, [recipe]);
 
+  useEffect(() => {
+    const currentStep = steps[currentIdx];
+    if (currentStep?.timerInMinutes) {
+      setTimerLeft(currentStep.timerInMinutes * 60);
+    } else {
+      setTimerLeft(null);
+    }
+    setIsTimerRunning(false);
+    stopReading();
+  }, [currentIdx, steps]);
+
+  useEffect(() => {
+    if (isTimerRunning && timerLeft && timerLeft > 0) {
+      timerRef.current = window.setInterval(() => {
+        setTimerLeft(p => (p !== null && p > 0 ? p - 1 : 0));
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [isTimerRunning, timerLeft]);
+
+  const handleReadAloud = async () => {
+    if (isReading) {
+        stopReading();
+        return;
+    }
+
+    const text = steps[currentIdx].text;
+    setIsReading(true);
+    try {
+        const audioData = await generateSpeech(text);
+        if (!audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        }
+        
+        const audioBuffer = await decodeAudioData(audioData, audioContextRef.current, 24000, 1);
+        const source = audioContextRef.current.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioContextRef.current.destination);
+        source.onended = () => setIsReading(false);
+        currentSourceRef.current = source;
+        source.start();
+    } catch (e) {
+        console.error("Speech generation failed", e);
+        setIsReading(false);
+    }
+  };
+
+  const stopReading = () => {
+    if (currentSourceRef.current) {
+        currentSourceRef.current.stop();
+        currentSourceRef.current = null;
+    }
+    setIsReading(false);
+  };
+
+  async function decodeAudioData(data: ArrayBuffer, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> {
+    const dataInt16 = new Int16Array(data);
+    const frameCount = dataInt16.length / numChannels;
+    const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+
+    for (let channel = 0; channel < numChannels; channel++) {
+        const channelData = buffer.getChannelData(channel);
+        for (let i = 0; i < frameCount; i++) {
+            channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+        }
+    }
+    return buffer;
+  }
+
+  const formatTime = (s: number) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+  };
+
+  if (loading) {
     return (
-        <div className="fixed inset-0 bg-stone-900 bg-opacity-95 flex flex-col items-center justify-center z-50 p-4 text-white">
-            <div className="w-full max-w-4xl h-full flex flex-col">
-                <header className="flex-shrink-0 flex justify-between items-center p-4 border-b border-stone-700">
-                    <h2 className="text-2xl md:text-3xl font-bold truncate">{recipe.title}</h2>
-                    <button onClick={onClose} className="text-stone-400 hover:text-white transition-colors">
-                        <XMarkIcon className="w-10 h-10" />
-                    </button>
-                </header>
-                
-                <main className="flex-grow flex flex-col justify-center items-center text-center p-4 overflow-y-auto">
-                    {isLoading && (
-                        <div>
-                            <SparklesIcon className="w-16 h-16 text-emerald-400 animate-pulse mx-auto mb-4" />
-                            <p className="text-xl font-semibold">AI připravuje chytré časovače...</p>
-                        </div>
-                    )}
-                    {error && <p className="text-red-400">{error}</p>}
-                    {!isLoading && currentInstruction && (
-                        <div className="w-full">
-                            <p className="text-lg font-semibold text-stone-400 mb-4">
-                                Krok {currentStep + 1} / {processedInstructions?.length}
-                            </p>
-                            <p className="text-2xl md:text-4xl leading-relaxed font-medium">
-                                {currentInstruction.text}
-                            </p>
-                            {currentInstruction.timerInMinutes && (
-                                <Timer minutes={currentInstruction.timerInMinutes} />
-                            )}
-                        </div>
-                    )}
-                </main>
-                
-                <footer className="flex-shrink-0 p-4 space-y-4">
-                    <div className="bg-stone-800 rounded-lg">
-                        <button
-                            onClick={() => setIngredientsVisible(!ingredientsVisible)}
-                            className="w-full flex justify-between items-center p-3 text-lg font-semibold"
-                        >
-                            <span>Ingredience</span>
-                            {ingredientsVisible ? <ChevronUpIcon className="w-6 h-6" /> : <ChevronDownIcon className="w-6 h-6" />}
-                        </button>
-                        {ingredientsVisible && (
-                            <div className="p-4 border-t border-stone-700 max-h-48 overflow-y-auto">
-                                <ul className="list-disc list-inside space-y-2 text-stone-300 text-left">
-                                    {recipe.ingredients.map((ing, i) => <li key={i}>{ing}</li>)}
-                                </ul>
-                            </div>
-                        )}
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <button onClick={handlePrev} disabled={currentStep === 0} className="disabled:opacity-40 disabled:cursor-not-allowed">
-                            <ArrowLeftCircleIcon className="w-16 h-16 text-stone-400 hover:text-white transition-colors" />
-                        </button>
-                        <button onClick={handleNext} disabled={!processedInstructions || currentStep === processedInstructions.length - 1} className="disabled:opacity-40 disabled:cursor-not-allowed">
-                            <ArrowRightCircleIcon className="w-16 h-16 text-emerald-400 hover:text-emerald-300 transition-colors" />
-                        </button>
-                    </div>
-                </footer>
-            </div>
-        </div>
+      <div className="h-[80vh] flex flex-col items-center justify-center p-10 bg-emerald-900 text-white">
+        <SparklesIcon className="w-16 h-16 animate-pulse mb-6 text-emerald-400" />
+        <h2 className="text-2xl font-bold">Připravuji režim vaření...</h2>
+        <p className="opacity-60">AI analyzuje postup pro chytré časovače a předčítání.</p>
+      </div>
     );
+  }
+
+  const currentStep = steps[currentIdx];
+
+  return (
+    <div className="h-[85vh] flex flex-col bg-emerald-950 text-white overflow-hidden">
+      <div className="px-8 py-6 flex justify-between items-center bg-black/20 border-b border-white/10">
+        <div>
+          <h2 className="text-lg font-bold truncate max-w-[200px] sm:max-w-none">{recipe.title}</h2>
+          <p className="text-[10px] uppercase font-bold text-emerald-400 tracking-widest">Krok {currentIdx + 1} z {steps.length}</p>
+        </div>
+        <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors"><XMarkIcon className="w-6 h-6" /></button>
+      </div>
+
+      <div className="flex-1 flex flex-col items-center justify-center p-8 sm:p-20 text-center relative">
+        <div 
+          className="absolute inset-0 bg-emerald-900/30 blur-3xl rounded-full" 
+          style={{ width: '50%', height: '50%', left: '25%', top: '25%' }} 
+        />
+        
+        <div className="relative z-10 max-w-2xl">
+          <p className="text-2xl sm:text-4xl font-medium leading-tight mb-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+            {currentStep.text}
+          </p>
+
+          <button 
+            onClick={handleReadAloud}
+            className={`mb-12 px-6 py-2 rounded-full border border-white/20 text-sm font-bold flex items-center gap-2 mx-auto transition-all ${isReading ? 'bg-white text-emerald-950' : 'hover:bg-white/10'}`}
+          >
+            <SparklesIcon className={`w-4 h-4 ${isReading ? 'animate-bounce' : ''}`} />
+            {isReading ? 'Předčítám...' : 'Přečíst nahlas'}
+          </button>
+
+          {timerLeft !== null && (
+            <div className="flex flex-col items-center bg-black/30 backdrop-blur-md rounded-[40px] p-8 sm:p-12 border border-white/5 shadow-2xl">
+              <div className="flex items-center gap-2 mb-4 text-emerald-400 font-bold uppercase tracking-widest text-xs">
+                <ClockIcon className="w-4 h-4" />
+                <span>Časovač</span>
+              </div>
+              <div className="text-7xl sm:text-9xl font-black font-mono mb-8 tracking-tighter">
+                {formatTime(timerLeft)}
+              </div>
+              <button 
+                onClick={() => setIsTimerRunning(!isTimerRunning)}
+                className={`px-12 py-4 rounded-full font-bold text-lg transition-all active:scale-95 ${isTimerRunning ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+              >
+                {isTimerRunning ? 'PAUZA' : 'START'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="px-8 py-10 bg-black/40 border-t border-white/10 flex items-center justify-between">
+        <button 
+          disabled={currentIdx === 0}
+          onClick={() => setCurrentIdx(p => p - 1)}
+          className="p-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-all disabled:opacity-20"
+        >
+          <ArrowLeftIcon className="w-8 h-8" />
+        </button>
+        
+        <div className="flex gap-2">
+          {steps.map((_, i) => (
+            <div 
+              key={i} 
+              className={`h-1.5 rounded-full transition-all duration-500 ${i === currentIdx ? 'w-8 bg-emerald-500' : i < currentIdx ? 'w-2 bg-emerald-900' : 'w-2 bg-white/20'}`} 
+            />
+          ))}
+        </div>
+
+        <button 
+          disabled={currentIdx === steps.length - 1}
+          onClick={() => setCurrentIdx(p => p + 1)}
+          className="p-4 bg-emerald-500 hover:bg-emerald-600 rounded-2xl shadow-xl shadow-emerald-500/20 transition-all active:scale-95 disabled:opacity-20"
+        >
+          <ArrowRightIcon className="w-8 h-8" />
+        </button>
+      </div>
+    </div>
+  );
 };
 
 export default CookingModeModal;

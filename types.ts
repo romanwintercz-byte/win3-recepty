@@ -1,3 +1,4 @@
+
 export enum SourceType {
   MANUAL = 'Ručně zadaný',
   AI_IMPORTED = 'Importováno AI',
@@ -23,19 +24,15 @@ export interface RecipeSuggestionResult {
   newRecipeSuggestion: Omit<Recipe, 'id' | 'sourceType' | 'rating'> | null;
 }
 
-// Typy pro Týdenní Plánovač
 export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 export type MealType = 'lunch' | 'dinner';
 
 export interface WeeklyPlan {
   [day: string]: {
-      // FIX: Use MealType to enforce that only 'lunch' and 'dinner' are valid keys, and make them optional.
-      // This provides better type inference and fixes the error in WeeklyPlanner.tsx.
-      [meal in MealType]?: string | null; // recipe.id nebo null
+      [meal in MealType]?: string | null;
   };
 }
 
-// Typy pro Nákupní Seznam
 export interface ShoppingListItem {
   name: string;
   quantity: string;

@@ -1,154 +1,160 @@
+
 import React, { useState } from 'react';
 import { Recipe, RecipeSuggestionResult, SourceType } from '../types';
-import { LightBulbIcon, SparklesIcon, PlusIcon } from './icons';
-import RecipeCard from './RecipeCard';
+import { suggestRecipeFromIngredients, generateRecipeImage } from '../services/geminiService';
+import { SparklesIcon, PlusIcon, PhotoIcon } from './icons';
 
 interface MagicFridgeModalProps {
-    onClose: () => void;
-    onFindRecipes: (ingredients: string) => void;
-    isLoading: boolean;
-    results: RecipeSuggestionResult | null;
-    error: string | null;
-    allRecipes: Recipe[];
-    onSelectRecipe: (id: string) => void;
-    onSaveRecipe: (recipe: Recipe) => void;
+  allRecipes: Recipe[];
+  onSaveRecipe: (r: Recipe) => void;
+  onSelectRecipe: (id: string) => void;
 }
 
-const MagicFridgeModal: React.FC<MagicFridgeModalProps> = ({ 
-    onClose, onFindRecipes, isLoading, results, error, allRecipes, onSelectRecipe, onSaveRecipe 
-}) => {
-    const [ingredientsText, setIngredientsText] = useState('');
+const MagicFridgeModal: React.FC<MagicFridgeModalProps> = ({ allRecipes, onSaveRecipe, onSelectRecipe }) => {
+  const [ingredients, setIngredients] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [imageLoading, setImageLoading] = useState(false);
+  const [result, setResult] = useState<RecipeSuggestionResult | null>(null);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
 
-    const handleFindClick = () => {
-        if (ingredientsText.trim()) {
-            onFindRecipes(ingredientsText);
+  const handleSearch = async () => {
+    if (!ingredients.trim()) return;
+    setLoading(true);
+    setGeneratedImageUrl(null);
+    try {
+      const res = await suggestRecipeFromIngredients(ingredients, allRecipes);
+      setResult(res);
+      
+      if (res.newRecipeSuggestion) {
+        setImageLoading(true);
+        try {
+          const imgUrl = await generateRecipeImage(res.newRecipeSuggestion.title);
+          setGeneratedImageUrl(imgUrl);
+        } catch (e) {
+          console.error("Image generation failed", e);
+        } finally {
+          setImageLoading(false);
         }
-    };
+      }
+    } catch (e) {
+      alert('Chyba při hledání receptu.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const handleSaveGeneratedRecipe = () => {
-        if (results?.newRecipeSuggestion) {
-            const newRecipe: Recipe = {
-                id: new Date().toISOString(),
-                ...results.newRecipeSuggestion,
-                sourceType: SourceType.AI_IMPORTED,
-                rating: 0,
-                imageUrl: '',
-            };
-            onSaveRecipe(newRecipe);
-        }
-    };
+  const handleSaveSuggested = () => {
+    if (result?.newRecipeSuggestion) {
+      const r: Recipe = {
+        ...result.newRecipeSuggestion,
+        id: Date.now().toString(),
+        sourceType: SourceType.AI_IMPORTED,
+        rating: 0,
+        imageUrl: generatedImageUrl || 'https://picsum.photos/seed/ai-food/600/400'
+      };
+      onSaveRecipe(r);
+      alert('Recept uložen!');
+    }
+  };
 
-    const matchedRecipes = results?.matchedRecipeIds
-        .map(id => allRecipes.find(r => r.id === id))
-        .filter((r): r is Recipe => !!r) || [];
+  return (
+    <div className="p-10">
+      <div className="text-center mb-10">
+        <div className="inline-block p-4 bg-amber-100 rounded-3xl text-amber-600 mb-4">
+          <SparklesIcon className="w-10 h-10" />
+        </div>
+        <h2 className="text-3xl font-bold text-stone-800">Kouzelná lednička</h2>
+        <p className="text-stone-500 max-w-sm mx-auto mt-2">Napište suroviny, které máte doma a AI vám najde nejlepší využití.</p>
+      </div>
 
-    const renderContent = () => {
-        if (isLoading) {
-            return (
-                <div className="text-center p-10">
-                    <SparklesIcon className="w-12 h-12 text-emerald-500 animate-pulse mx-auto mb-4" />
-                    <p className="text-lg font-semibold text-stone-700">AI přemýšlí, co byste si mohli uvařit...</p>
-                    <p className="text-stone-500">To může chvilku trvat.</p>
-                </div>
-            );
-        }
+      <div className="mb-8">
+        <textarea 
+          placeholder="Např. kuřecí maso, rýže, brokolice, cibule..."
+          className="w-full bg-stone-100 border-none rounded-3xl p-6 text-lg focus:ring-2 focus:ring-amber-500 outline-none min-h-[120px]"
+          value={ingredients}
+          onChange={(e) => setIngredients(e.target.value)}
+        />
+        <button 
+          onClick={handleSearch}
+          disabled={loading || !ingredients.trim()}
+          className="w-full mt-4 bg-amber-500 hover:bg-amber-600 text-white py-4 rounded-2xl font-bold transition-all active:scale-[0.98] disabled:opacity-50"
+        >
+          {loading ? 'Hledám řešení...' : 'Co můžu uvařit?'}
+        </button>
+      </div>
 
-        if (error) {
-            return <p className="text-red-500 text-center p-8">{error}</p>;
-        }
-
-        if (results) {
-            // Case 1: Matched recipes found
-            if (matchedRecipes.length > 0) {
-                return (
-                    <div>
-                        <h3 className="text-xl font-bold text-stone-800 mb-4">Našli jsme pro vás tyto recepty:</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[50vh] overflow-y-auto p-1">
-                            {matchedRecipes.map(recipe => (
-                                <RecipeCard key={recipe.id} recipe={recipe} onSelectRecipe={onSelectRecipe} />
-                            ))}
-                        </div>
+      {result && (
+        <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+          {result.matchedRecipeIds.length > 0 && (
+            <div>
+              <h3 className="text-sm font-bold uppercase text-stone-400 mb-4">Máme pro vás shodu v kuchařce:</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {result.matchedRecipeIds.map(id => {
+                  const r = allRecipes.find(x => x.id === id);
+                  if (!r) return null;
+                  return (
+                    <div 
+                      key={id} 
+                      onClick={() => onSelectRecipe(id)}
+                      className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl cursor-pointer hover:bg-emerald-100 transition-colors"
+                    >
+                      <p className="font-bold text-emerald-800">{r.title}</p>
+                      <p className="text-xs text-emerald-600">Existující recept</p>
                     </div>
-                );
-            }
-            // Case 2: New recipe suggested
-            if (results.newRecipeSuggestion) {
-                const suggestion = results.newRecipeSuggestion;
-                return (
-                    <div>
-                        <h3 className="text-xl font-bold text-stone-800 mb-2">Nenašli jsme shodu, ale AI pro vás vytvořila tento recept:</h3>
-                        <div className="bg-emerald-50 p-4 rounded-lg max-h-[50vh] overflow-y-auto">
-                            <h4 className="text-2xl font-bold text-emerald-700">{suggestion.title}</h4>
-                            <p className="text-stone-600 my-2">{suggestion.description}</p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                <div>
-                                    <h5 className="font-semibold mb-2">Ingredience:</h5>
-                                    <ul className="list-disc list-inside text-sm space-y-1">
-                                        {suggestion.ingredients.map((ing, i) => <li key={i}>{ing}</li>)}
-                                    </ul>
-                                </div>
-                                <div>
-                                    <h5 className="font-semibold mb-2">Postup:</h5>
-                                    <ol className="list-decimal list-inside text-sm space-y-1">
-                                        {suggestion.instructions.map((inst, i) => <li key={i}>{inst}</li>)}
-                                    </ol>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="flex justify-end mt-4">
-                            <button 
-                                onClick={handleSaveGeneratedRecipe}
-                                className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white font-semibold rounded-full hover:bg-emerald-600 transition-colors shadow">
-                                <PlusIcon className="w-5 h-5"/> Uložit tento recept
-                            </button>
-                        </div>
-                    </div>
-                );
-            }
-            // Case 3: Nothing found
-            return (
-                <div className="text-center p-10">
-                    <p className="text-lg font-semibold text-stone-700">Bohužel jsme nic nenašli.</p>
-                    <p className="text-stone-500">Zkuste zadat více surovin nebo upravit svůj dotaz.</p>
-                </div>
-            );
-        }
-
-        // Initial state
-        return (
-             <div className="space-y-4">
-                <textarea
-                    placeholder="Napište suroviny, které máte doma, oddělené čárkou. Např. kuřecí prsa, rýže, brokolice, cibule, česnek..."
-                    value={ingredientsText}
-                    onChange={(e) => setIngredientsText(e.target.value)}
-                    rows={6}
-                    className="w-full p-3 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-                <button
-                    onClick={handleFindClick}
-                    disabled={!ingredientsText.trim()}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-emerald-500 text-white font-bold rounded-md hover:bg-emerald-600 disabled:bg-stone-300 transition-colors"
-                >
-                    <SparklesIcon className="w-5 h-5" /> Najít recepty
-                </button>
+                  );
+                })}
+              </div>
             </div>
-        );
-    };
+          )}
 
-    return (
-        <div className="p-6 md:p-8">
-            <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 bg-amber-100 rounded-full">
-                    <LightBulbIcon className="w-8 h-8 text-amber-500" />
+          {result.newRecipeSuggestion && (
+            <div className="bg-stone-50 p-6 rounded-3xl border border-stone-200">
+              <div className="flex flex-col md:flex-row gap-6 mb-4">
+                 <div className="md:w-1/3 aspect-[4/3] rounded-2xl overflow-hidden bg-stone-200 flex items-center justify-center relative shadow-inner">
+                    {imageLoading ? (
+                        <div className="text-center">
+                            <SparklesIcon className="w-8 h-8 text-amber-500 animate-spin mx-auto mb-2" />
+                            <p className="text-[10px] font-bold text-stone-400 uppercase">Generuji foto...</p>
+                        </div>
+                    ) : generatedImageUrl ? (
+                        <img src={generatedImageUrl} alt={result.newRecipeSuggestion.title} className="w-full h-full object-cover" />
+                    ) : (
+                        <PhotoIcon className="w-12 h-12 text-stone-300" />
+                    )}
+                 </div>
+                 <div className="flex-1">
+                    <div className="flex justify-between items-start mb-2">
+                        <h3 className="text-xl font-bold text-stone-800">{result.newRecipeSuggestion.title}</h3>
+                        <button 
+                        onClick={handleSaveSuggested}
+                        className="flex items-center gap-2 bg-white text-stone-800 px-4 py-2 rounded-full text-xs font-bold border border-stone-200 hover:bg-stone-100"
+                        >
+                        <PlusIcon className="w-4 h-4" /> Uložit
+                        </button>
+                    </div>
+                    <p className="text-stone-600 text-sm mb-4 leading-relaxed">{result.newRecipeSuggestion.description}</p>
+                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <p className="text-[10px] font-bold uppercase text-stone-400 mb-2">Suroviny</p>
+                  <ul className="text-xs space-y-1 text-stone-700">
+                    {result.newRecipeSuggestion.ingredients.map((i, idx) => <li key={idx}>• {i}</li>)}
+                  </ul>
                 </div>
                 <div>
-                    <h2 className="text-2xl font-bold text-stone-800">Kouzelná Lednička</h2>
-                    <p className="text-stone-600">Řekněte mi, co máte doma, a já vám najdu nebo vytvořím recept!</p>
+                  <p className="text-[10px] font-bold uppercase text-stone-400 mb-2">Zkrácený postup</p>
+                  <ol className="text-xs space-y-1 text-stone-700 list-decimal list-inside">
+                    {result.newRecipeSuggestion.instructions.map((i, idx) => <li key={idx} className="line-clamp-1">{i}</li>)}
+                  </ol>
                 </div>
+              </div>
             </div>
-            {renderContent()}
+          )}
         </div>
-    );
+      )}
+    </div>
+  );
 };
 
 export default MagicFridgeModal;

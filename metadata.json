@@ -1,4 +1,5 @@
 {
   "name": "Win3 Recepty",
-  "description": "Moderní a intuitivní aplikace pro ukládání, správu a objevování kuchařských receptů, vylepšená o funkce s umělou inteligencí pro import receptů z textu."
+  "description": "Profesionální kuchařský asistent s Gemini 3 Pro. Nabízí AI generování fotografií pro nové recepty, hlasové předčítání v režimu vaření, chytré plánování a nákupní seznamy.",
+  "requestFramePermissions": []
 }
