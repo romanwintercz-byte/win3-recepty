@@ -1,9 +1,52 @@
 
 export enum SourceType {
-  MANUAL = 'Ručně zadaný',
+  MANUAL = 'Vlastní plán',
+  AI_GENERATED = 'Navrženo AI',
   AI_IMPORTED = 'Importováno AI',
 }
 
+export interface Adventure {
+  id: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  sourceType: SourceType;
+  waypoints: string[];
+  briefingSteps: string[];
+  distanceKm?: number;
+  durationHours?: number;
+  difficulty: 'Lehká' | 'Střední' | 'Expert';
+  tags: string[];
+  rating: number;
+}
+
+export interface AdventureSuggestionResult {
+  matchedAdventureIds: string[];
+  newAdventureSuggestion: Omit<Adventure, 'id' | 'sourceType' | 'rating'> | null;
+}
+
+export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+export type RideType = 'short' | 'long';
+
+export interface TourPlan {
+  [day: string]: {
+      [ride in RideType]?: string | null;
+  };
+}
+
+export interface GearListItem {
+  name: string;
+  quantity: string;
+}
+
+export interface GearCategory {
+  category: string;
+  items: GearListItem[];
+}
+
+export type GearList = GearCategory[];
+
+// Added missing Recipe types
 export interface Recipe {
   id: string;
   title: string;
@@ -12,9 +55,9 @@ export interface Recipe {
   sourceType: SourceType;
   ingredients: string[];
   instructions: string[];
-  prepTime?: number;
-  cookTime?: number;
-  servings?: number;
+  prepTime: number;
+  cookTime: number;
+  servings: number;
   tags: string[];
   rating: number;
 }
@@ -24,7 +67,6 @@ export interface RecipeSuggestionResult {
   newRecipeSuggestion: Omit<Recipe, 'id' | 'sourceType' | 'rating'> | null;
 }
 
-export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 export type MealType = 'lunch' | 'dinner';
 
 export interface WeeklyPlan {
@@ -33,14 +75,4 @@ export interface WeeklyPlan {
   };
 }
 
-export interface ShoppingListItem {
-  name: string;
-  quantity: string;
-}
-
-export interface ShoppingListCategory {
-  category: string;
-  items: ShoppingListItem[];
-}
-
-export type ShoppingList = ShoppingListCategory[];
+export type ShoppingList = GearList;

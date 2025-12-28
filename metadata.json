@@ -1,7 +1,7 @@
 
 {
-  "name": "Win3 Recepty",
-  "description": "Profesionální kuchařský asistent s Gemini 3 Pro. Nabízí AI generování fotografií pro nové recepty, hlasové předčítání v režimu vaření, chytré plánování a nákupní seznamy.",
+  "name": "Win3 Motoraid AI",
+  "description": "Chytrý asistent pro motorkářská dobrodružství. Plánování tras pomocí AI, hlasový briefing v přilbě a automatické seznamy výbavy.",
   "requestFramePermissions": [
     "microphone"
   ]

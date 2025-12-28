@@ -1,180 +1,143 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Recipe, WeeklyPlan, SourceType, DayOfWeek, MealType } from './types';
+import { Adventure, TourPlan, SourceType, DayOfWeek, RideType } from './types';
 import Header from './components/Header';
-import RecipeList from './components/RecipeList';
-import RecipeDetail from './components/RecipeDetail';
-import RecipeForm from './components/RecipeForm';
-import MagicFridgeModal from './components/MagicFridgeModal';
-import WeeklyPlanner from './components/WeeklyPlanner';
-import ShoppingListModal from './components/ShoppingListModal';
-import CookingModeModal from './components/CookingModeModal';
+import AdventureList from './components/AdventureList';
+import AdventureDetail from './components/AdventureDetail';
+import AdventureForm from './components/AdventureForm';
+import MagicGarageModal from './components/MagicGarageModal';
+import TourPlanner from './components/TourPlanner';
+import GearListModal from './components/GearListModal';
+import RideModeModal from './components/RideModeModal';
 import Modal from './components/Modal';
 
-const INITIAL_RECIPES: Recipe[] = [
+const INITIAL_ADVENTURES: Adventure[] = [
   {
     id: '1',
-    title: 'Špagety Carbonara',
-    description: 'Pravé italské špagety s vejci a guanciale.',
-    imageUrl: 'https://picsum.photos/seed/carbonara/600/400',
+    title: 'Průsmyk Stelvio',
+    description: 'Legendárních 48 zatáček v italských Alpách.',
+    imageUrl: 'https://picsum.photos/seed/stelvio/800/450',
     sourceType: SourceType.MANUAL,
-    ingredients: ['200g špaget', '100g pancetty', '2 vejce', '50g parmazánu', 'pepř'],
-    instructions: ['Uvařte špagety.', 'Orestujte pancettu.', 'Smíchejte vejce se sýrem.', 'Vše spojte mimo oheň.'],
-    prepTime: 10,
-    cookTime: 15,
-    servings: 2,
-    tags: ['itálie', 'rychlovka', 'těstoviny'],
+    waypoints: ['Bormio', 'Stelvio Pass', 'Prato allo Stelvio'],
+    briefingSteps: ['Zkontrolujte brzdy.', 'Pozor na cyklisty v zatáčkách.', 'Vychutnejte si kávu na vrcholu.'],
+    distanceKm: 25,
+    durationHours: 1,
+    difficulty: 'Expert',
+    tags: ['alpy', 'zatáčky', 'itálie'],
     rating: 5,
   }
 ];
 
 const App: React.FC = () => {
-  const [recipes, setRecipes] = useState<Recipe[]>(() => {
-    try {
-      const saved = localStorage.getItem('recipes');
-      return saved ? JSON.parse(saved) : INITIAL_RECIPES;
-    } catch (e) {
-      console.error("Failed to load recipes from localStorage", e);
-      return INITIAL_RECIPES;
-    }
+  const [adventures, setAdventures] = useState<Adventure[]>(() => {
+    const saved = localStorage.getItem('adventures');
+    return saved ? JSON.parse(saved) : INITIAL_ADVENTURES;
   });
 
-  const [weeklyPlan, setWeeklyPlan] = useState<WeeklyPlan>(() => {
-    try {
-      const saved = localStorage.getItem('weeklyPlan');
-      return saved ? JSON.parse(saved) : {};
-    } catch (e) {
-      console.error("Failed to load plan from localStorage", e);
-      return {};
-    }
+  const [tourPlan, setTourPlan] = useState<TourPlan>(() => {
+    const saved = localStorage.getItem('tourPlan');
+    return saved ? JSON.parse(saved) : {};
   });
   
-  const [activeModal, setActiveModal] = useState<'detail' | 'form' | 'fridge' | 'shopping' | 'cooking' | null>(null);
-  const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
-  const [recipeToEdit, setRecipeToEdit] = useState<Recipe | null>(null);
+  const [activeModal, setActiveModal] = useState<'detail' | 'form' | 'garage' | 'gear' | 'ride' | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editingAdventure, setEditingAdventure] = useState<Adventure | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentView, setCurrentView] = useState<'recipes' | 'planner'>('recipes');
+  const [currentView, setCurrentView] = useState<'explore' | 'planner'>('explore');
 
-  useEffect(() => {
-    localStorage.setItem('recipes', JSON.stringify(recipes));
-  }, [recipes]);
+  useEffect(() => { localStorage.setItem('adventures', JSON.stringify(adventures)); }, [adventures]);
+  useEffect(() => { localStorage.setItem('tourPlan', JSON.stringify(tourPlan)); }, [tourPlan]);
 
-  useEffect(() => {
-    localStorage.setItem('weeklyPlan', JSON.stringify(weeklyPlan));
-  }, [weeklyPlan]);
-
-  const handleSaveRecipe = useCallback((recipe: Recipe) => {
-    setRecipes(prev => {
-      const idx = prev.findIndex(r => r.id === recipe.id);
-      if (idx > -1) {
-        const next = [...prev];
-        next[idx] = recipe;
-        return next;
-      }
-      return [recipe, ...prev];
+  const handleSave = useCallback((adv: Adventure) => {
+    setAdventures(prev => {
+      const idx = prev.findIndex(r => r.id === adv.id);
+      return idx > -1 ? (prev[idx] = adv, [...prev]) : [adv, ...prev];
     });
     setActiveModal(null);
   }, []);
 
-  const handleDeleteRecipe = useCallback((id: string) => {
-    if (confirm('Opravdu chcete recept smazat?')) {
-      setRecipes(prev => prev.filter(r => r.id !== id));
-      setActiveModal(null);
-    }
+  const handleUpdatePlan = useCallback((day: DayOfWeek, ride: RideType, id: string | null) => {
+    setTourPlan(prev => ({ ...prev, [day]: { ...(prev[day] || {}), [ride]: id } }));
   }, []);
 
-  const handleUpdatePlan = useCallback((day: DayOfWeek, meal: MealType, recipeId: string | null) => {
-    setWeeklyPlan(prev => ({
-      ...prev,
-      [day]: { ...(prev[day] || {}), [meal]: recipeId }
-    }));
-  }, []);
-
-  const filteredRecipes = useMemo(() => {
+  const filtered = useMemo(() => {
     const q = searchQuery.toLowerCase();
-    return recipes.filter(r => 
-      r.title.toLowerCase().includes(q) || 
-      (r.tags && r.tags.some(t => t.toLowerCase().includes(q)))
-    );
-  }, [recipes, searchQuery]);
+    return adventures.filter(a => a.title.toLowerCase().includes(q) || a.tags.some(t => t.toLowerCase().includes(q)));
+  }, [adventures, searchQuery]);
 
-  const selectedRecipe = useMemo(() => 
-    recipes.find(r => r.id === selectedRecipeId), [recipes, selectedRecipeId]
-  );
+  const selected = useMemo(() => adventures.find(a => a.id === selectedId), [adventures, selectedId]);
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen pb-20 text-stone-200">
       <Header 
-        onAddRecipe={() => { setRecipeToEdit(null); setActiveModal('form'); }}
+        onAdd={() => { setEditingAdventure(null); setActiveModal('form'); }}
         onSearch={setSearchQuery}
-        onOpenFridge={() => setActiveModal('fridge')}
+        onOpenGarage={() => setActiveModal('garage')}
         currentView={currentView}
         onSetView={setCurrentView}
       />
 
       <main className="container mx-auto px-4 pt-6">
-        {currentView === 'recipes' ? (
-          <RecipeList 
-            recipes={filteredRecipes} 
-            onSelectRecipe={(id) => { setSelectedRecipeId(id); setActiveModal('detail'); }} 
+        {currentView === 'explore' ? (
+          <AdventureList 
+            adventures={filtered} 
+            onSelect={(id) => { setSelectedId(id); setActiveModal('detail'); }} 
           />
         ) : (
-          <WeeklyPlanner 
-            allRecipes={recipes}
-            weeklyPlan={weeklyPlan}
-            onUpdatePlan={handleUpdatePlan}
-            onGenerateShoppingList={() => setActiveModal('shopping')}
-            onResetPlan={() => setWeeklyPlan({})}
+          <TourPlanner 
+            adventures={adventures}
+            plan={tourPlan}
+            onUpdate={handleUpdatePlan}
+            onOpenGear={() => setActiveModal('gear')}
           />
         )}
       </main>
 
-      {activeModal === 'detail' && selectedRecipe && (
+      {activeModal === 'detail' && selected && (
         <Modal onClose={() => setActiveModal(null)}>
-          <RecipeDetail 
-            recipe={selectedRecipe}
-            onEdit={() => { setRecipeToEdit(selectedRecipe); setActiveModal('form'); }}
-            onDelete={() => handleDeleteRecipe(selectedRecipe.id)}
-            onStartCooking={() => setActiveModal('cooking')}
+          <AdventureDetail 
+            adventure={selected}
+            onEdit={() => { setEditingAdventure(selected); setActiveModal('form'); }}
+            onDelete={() => setAdventures(p => p.filter(a => a.id !== selected.id))}
+            onStartRide={() => setActiveModal('ride')}
           />
         </Modal>
       )}
 
       {activeModal === 'form' && (
         <Modal onClose={() => setActiveModal(null)}>
-          <RecipeForm 
-            recipeToEdit={recipeToEdit}
-            onSave={handleSaveRecipe}
+          <AdventureForm 
+            editing={editingAdventure}
+            onSave={handleSave}
             onClose={() => setActiveModal(null)}
           />
         </Modal>
       )}
 
-      {activeModal === 'fridge' && (
+      {activeModal === 'garage' && (
         <Modal onClose={() => setActiveModal(null)}>
-          <MagicFridgeModal 
-            allRecipes={recipes}
-            onSaveRecipe={handleSaveRecipe}
-            onSelectRecipe={(id) => { setSelectedRecipeId(id); setActiveModal('detail'); }}
+          <MagicGarageModal 
+            allAdventures={adventures}
+            onSave={handleSave}
+            onSelect={(id) => { setSelectedId(id); setActiveModal('detail'); }}
           />
         </Modal>
       )}
 
-      {activeModal === 'shopping' && (
+      {activeModal === 'gear' && (
         <Modal onClose={() => setActiveModal(null)}>
-          <ShoppingListModal 
-            recipes={recipes.filter(r => 
-              (Object.values(weeklyPlan) as Array<WeeklyPlan[string]>).some(day => 
-                day?.lunch === r.id || day?.dinner === r.id
-              )
+          <GearListModal 
+            adventures={adventures.filter(a => 
+              // Fix: cast Object.values to any[] or the actual type to resolve "unknown" error
+              (Object.values(tourPlan) as any[]).some(d => d?.short === a.id || d?.long === a.id)
             )}
           />
         </Modal>
       )}
 
-      {activeModal === 'cooking' && selectedRecipe && (
-        <CookingModeModal 
-          recipe={selectedRecipe}
+      {activeModal === 'ride' && selected && (
+        <RideModeModal 
+          adventure={selected}
           onClose={() => setActiveModal(null)}
         />
       )}
